@@ -1,0 +1,926 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Slidoku</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout concept: a recessed tray holds nine tiles (the 3x3 boxes). Only the purple tile can trade places with a neighbour.
+   Controls sit beside the tray on wide screens and under it on phones. Purple is reserved for the sliding tile and its arrows;
+   blue is the working colour for selection and the player's own digits. */
+:root {
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --bg: #e8eaf1;
+  --surface: #f5f6fa;
+  --tray: #c3c9da;
+  --tile: #fdfdff;
+  --line: #d5d9e6;
+  --rule: #cfd4e2;
+  --ink: #15192b;
+  --ink-soft: #586079;
+  --note: #5b6482;
+  --entry: #2352d8;
+  --sel: #bfd1fe;
+  --sel-ring: #2352d8;
+  --peer: #edf0fa;
+  --same: #ffe8a6;
+  --purple: #7a4de0;
+  --on-purple: #ffffff;
+  --purple-tint: #e7defc;
+  --purple-line: #cdbdf4;
+  --purple-peer: #d8c9f8;
+  --err: #c4283f;
+  --err-bg: #ffd6dc;
+  --ok-bg: #d3f1e3;
+  --ok-ink: #0c5a39;
+  --toggle-off: #a9b0c4;
+  --tray-shadow: rgba(10, 14, 40, .2);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11131b;
+    --surface: #1a1d2a;
+    --tray: #07080d;
+    --tile: #1c2030;
+    --line: #2b3046;
+    --rule: #2e3350;
+    --ink: #eceef7;
+    --ink-soft: #9aa2bc;
+    --note: #a2aac4;
+    --entry: #8fb1ff;
+    --sel: #2c4a96;
+    --sel-ring: #8fb1ff;
+    --peer: #242a44;
+    --same: #58471a;
+    --purple: #a98cff;
+    --on-purple: #1a1033;
+    --purple-tint: #32265f;
+    --purple-line: #4b3b8a;
+    --purple-peer: #3d3074;
+    --err: #ff7089;
+    --err-bg: #4d2030;
+    --ok-bg: #16402f;
+    --ok-ink: #8fe3bc;
+    --toggle-off: #4a5070;
+    --tray-shadow: rgba(0, 0, 0, .6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11131b;
+  --surface: #1a1d2a;
+  --tray: #07080d;
+  --tile: #1c2030;
+  --line: #2b3046;
+  --rule: #2e3350;
+  --ink: #eceef7;
+  --ink-soft: #9aa2bc;
+  --note: #a2aac4;
+  --entry: #8fb1ff;
+  --sel: #2c4a96;
+  --sel-ring: #8fb1ff;
+  --peer: #242a44;
+  --same: #58471a;
+  --purple: #a98cff;
+  --on-purple: #1a1033;
+  --purple-tint: #32265f;
+  --purple-line: #4b3b8a;
+  --purple-peer: #3d3074;
+  --err: #ff7089;
+  --err-bg: #4d2030;
+  --ok-bg: #16402f;
+  --ok-ink: #8fe3bc;
+  --toggle-off: #4a5070;
+  --tray-shadow: rgba(0, 0, 0, .6);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+  padding-block: 20px 44px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+button { font: inherit; color: inherit; }
+
+.wrap { max-width: 980px; margin-inline: auto; display: grid; gap: 20px; }
+
+/* Header */
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 28px; }
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.logo { width: 34px; height: 34px; flex: none; }
+.logo .t { fill: var(--ink); }
+.logo .p { fill: var(--purple); }
+h1 { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: 31px; line-height: 1; letter-spacing: -.025em; }
+.tag { margin: 5px 0 0; color: var(--ink-soft); font-size: 14px; }
+.hud { margin: 0; display: flex; gap: 22px; }
+.hud div { display: grid; gap: 1px; }
+.hud dt, .label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .09em; color: var(--ink-soft);
+}
+.hud dd { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 21px; font-variant-numeric: tabular-nums; line-height: 1.15; }
+
+/* Layout */
+.layout {
+  display: grid; grid-template-columns: minmax(0, 560px) minmax(0, 360px);
+  gap: 28px 40px; justify-content: center; align-items: start;
+}
+@media (max-width: 880px) { .layout { grid-template-columns: minmax(0, 560px); } }
+.stage { display: grid; gap: 12px; --gap: 7px; min-width: 0; }
+@media (max-width: 480px) { .stage { --gap: 5px; } }
+.panel { display: grid; gap: 22px; min-width: 0; }
+.label { margin: 0 0 8px; }
+
+/* Tray and tiles */
+.tray {
+  background: var(--tray); border-radius: 16px; padding: var(--gap);
+  box-shadow: inset 0 2px 8px var(--tray-shadow);
+}
+.board { --slide: .34s; position: relative; width: 100%; aspect-ratio: 1; container-type: inline-size; }
+.box {
+  position: absolute; left: 0; top: 0;
+  width: calc((100% - 2 * var(--gap)) / 3); aspect-ratio: 1;
+  display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); gap: 1px;
+  background: var(--line); border-radius: 9px; overflow: hidden;
+  transform: translate(calc(var(--c) * (100% + var(--gap))), calc(var(--r) * (100% + var(--gap))));
+  --cell-bg: var(--tile); --peer-bg: var(--peer);
+  box-shadow: 0 1px 3px rgba(10, 14, 40, .25);
+}
+.board.ready .box { transition: transform var(--slide) cubic-bezier(.3, .9, .3, 1); }
+.box.purple {
+  --cell-bg: var(--purple-tint); --peer-bg: var(--purple-peer);
+  background: var(--purple-line); z-index: 2;
+  box-shadow: 0 0 0 2px var(--purple), 0 8px 18px rgba(90, 50, 200, .28);
+}
+
+.cell {
+  position: relative; display: grid; place-items: center; background: var(--cell-bg);
+  cursor: pointer; user-select: none; -webkit-user-select: none;
+}
+.cell .val {
+  font-family: var(--font-display); font-weight: 600; line-height: 1; color: var(--entry);
+  font-size: calc(100cqw / 9 * .6); font-variant-numeric: tabular-nums;
+}
+.cell.given .val { color: var(--ink); font-weight: 800; }
+.cell.conflict .val { color: var(--err); }
+.cell .notes {
+  position: absolute; inset: 2px; display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  place-items: center; pointer-events: none;
+}
+.cell .notes i {
+  font-style: normal; font-weight: 600; line-height: 1; color: var(--note);
+  font-size: calc(100cqw / 9 * .25); font-variant-numeric: tabular-nums;
+}
+.cell .notes i.hit { color: var(--entry); font-weight: 800; }
+.cell.has-val .notes, .cell:not(.has-val) .val { display: none; }
+.cell.peer { --cell-bg: var(--peer-bg); }
+.cell.same { --cell-bg: var(--same); }
+.cell.conflict { --cell-bg: var(--err-bg); }
+.cell.sel { --cell-bg: var(--sel); box-shadow: inset 0 0 0 2px var(--sel-ring); }
+
+/* Slide chips sit in the gap between the purple tile and each neighbour */
+.chip {
+  position: absolute; z-index: 5; width: 30px; height: 30px; padding: 0; border-radius: 50%;
+  border: 2px solid var(--tray); background: var(--purple); color: var(--on-purple);
+  display: grid; place-items: center; cursor: pointer; transform: translate(-50%, -50%);
+  box-shadow: 0 2px 7px rgba(40, 20, 100, .4);
+  transition: left var(--slide) cubic-bezier(.3, .9, .3, 1), top var(--slide) cubic-bezier(.3, .9, .3, 1), scale .12s;
+}
+.chip:hover { scale: 1.1; }
+.chip svg, .pad svg { width: 15px; height: 15px; display: block; }
+.chip[data-dir="up"] svg { rotate: 180deg; }
+.chip[data-dir="left"] svg { rotate: 90deg; }
+.chip[data-dir="right"] svg { rotate: -90deg; }
+
+.banner {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px;
+  padding: 12px 14px; border-radius: 12px; font-weight: 600;
+}
+.banner.ok { background: var(--ok-bg); color: var(--ok-ink); }
+.banner.info { background: var(--surface); border: 1px solid var(--rule); }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 9px 14px; font-weight: 600; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 10px;
+}
+.btn:hover:not(:disabled) { border-color: var(--ink-soft); }
+.btn:disabled { opacity: .4; cursor: default; }
+.btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn.armed { border-color: var(--err); color: var(--err); }
+.btn svg { width: 18px; height: 18px; flex: none; }
+.btn:focus-visible, .chip:focus-visible, .switch input:focus-visible + .track, .seg input:focus-visible + span, details summary:focus-visible {
+  outline: 3px solid var(--sel-ring); outline-offset: 2px;
+}
+
+.numpad { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px; }
+.num { flex-direction: column; gap: 0; height: 58px; padding: 0; line-height: 1.05; }
+.num span { font-family: var(--font-display); font-weight: 700; font-size: 23px; }
+.num small { font-size: 10px; font-weight: 600; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.num.done { opacity: .35; }
+.notes-on .num { border-style: dashed; border-color: var(--ink-soft); }
+@media (max-width: 400px) { .numpad { gap: 4px; } }
+
+.tools { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.tools .btn { padding-inline: 6px; gap: 6px; }
+
+.opts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px 26px; align-items: start; }
+.dpad {
+  display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); gap: 4px;
+  grid-template-areas: ". up ." "left mid right" ". down .";
+}
+.pad { padding: 0; }
+.pad[data-dir="up"] { grid-area: up; }
+.pad[data-dir="left"] { grid-area: left; }
+.pad[data-dir="right"] { grid-area: right; }
+.pad[data-dir="down"] { grid-area: down; }
+.pad[data-dir="right"] svg { rotate: 90deg; }
+.pad[data-dir="down"] svg { rotate: 180deg; }
+.pad[data-dir="left"] svg { rotate: -90deg; }
+.mid { grid-area: mid; margin: 7px; border-radius: 8px; background: var(--purple); box-shadow: 0 0 0 2px var(--purple-line); }
+
+.switch { display: flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 600; cursor: pointer; position: relative; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.track { position: relative; flex: none; width: 42px; height: 24px; border-radius: 12px; background: var(--toggle-off); transition: background .15s; }
+.track::after {
+  content: ""; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; transition: transform .15s;
+}
+.switch input:checked + .track { background: var(--sel-ring); }
+.switch input:checked + .track::after { transform: translateX(18px); }
+
+.seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.seg label { position: relative; cursor: pointer; }
+.seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.seg span { display: block; padding: 10px 4px; text-align: center; font-weight: 600; font-size: 14px; }
+.seg input:checked + span { background: var(--ink); color: var(--bg); }
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions .btn { flex: 1 1 auto; }
+
+.how { border-top: 1px solid var(--rule); padding-top: 14px; color: var(--ink-soft); font-size: 14px; }
+.how summary { cursor: pointer; font-weight: 700; color: var(--ink); }
+.how ul { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 6px; }
+.how .keys { margin: 14px 0 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 16px; align-items: center; }
+.how .keys dt { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.how .keys dd { margin: 0; }
+.how kbd { font-family: var(--font-body); font-weight: 600; font-size: 12px; min-width: 22px; text-align: center; padding: 2px 6px; border: 1px solid var(--rule); border-radius: 5px; background: var(--surface); color: var(--ink); }
+
+@keyframes lift { 0%, 100% { scale: 1; } 45% { scale: 1.045; } }
+.board.win .box { animation: lift .7s ease-in-out both; animation-delay: calc(var(--n) * 80ms); }
+@media (prefers-reduced-motion: reduce) {
+  .board.ready .box, .chip, .track, .track::after { transition: none; }
+  .board.win .box { animation: none; }
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 30 30" aria-hidden="true">
+        <rect class="t" x="0" y="0" width="8" height="8" rx="2"/><rect class="t" x="11" y="0" width="8" height="8" rx="2"/><rect class="t" x="22" y="0" width="8" height="8" rx="2"/>
+        <rect class="t" x="0" y="11" width="8" height="8" rx="2"/><rect class="t" x="11" y="11" width="8" height="8" rx="2"/><rect class="p" x="22" y="11" width="8" height="8" rx="2"/>
+        <rect class="t" x="0" y="22" width="8" height="8" rx="2"/><rect class="t" x="11" y="22" width="8" height="8" rx="2"/><rect class="t" x="22" y="22" width="8" height="8" rx="2"/>
+      </svg>
+      <div>
+        <h1>slidoku</h1>
+        <p class="tag">sudoku on a sliding tray</p>
+      </div>
+    </div>
+    <dl class="hud" aria-label="game status">
+      <div><dt>Time</dt><dd id="hudTime">0:00</dd></div>
+      <div><dt>Slides</dt><dd id="hudSlides">0</dd></div>
+      <div><dt>Filled</dt><dd id="hudFilled">0/81</dd></div>
+    </dl>
+  </header>
+
+  <div class="layout">
+    <section class="stage" aria-label="puzzle">
+      <div class="tray"><div class="board" id="board"></div></div>
+      <div class="banner ok" id="banner" hidden>
+        <span id="bannerText"></span>
+        <button class="btn primary" type="button" id="bannerNew">new puzzle</button>
+      </div>
+    </section>
+
+    <section class="panel" id="panel" aria-label="controls">
+      <div>
+        <p class="label">Digits</p>
+        <div class="numpad" id="numpad"></div>
+      </div>
+
+      <div class="tools">
+        <button class="btn" type="button" id="btnNotes" aria-pressed="false" title="notes (n)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16l-1 4z"/><path d="M14 6l3 3"/></svg>notes
+        </button>
+        <button class="btn" type="button" id="btnErase" title="erase (backspace)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H9l-6-7z"/><path d="M13 10l4 4M17 10l-4 4"/></svg>erase
+        </button>
+        <button class="btn" type="button" id="btnUndo" title="undo (ctrl/cmd+z)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>undo
+        </button>
+        <button class="btn" type="button" id="btnRedo" title="redo (ctrl/cmd+y)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>redo
+        </button>
+      </div>
+
+      <div class="opts">
+        <div>
+          <p class="label">Move purple box</p>
+          <div class="dpad" id="dpad" role="group" aria-label="move the purple box"></div>
+        </div>
+        <div>
+          <p class="label">Options</p>
+          <label class="switch"><input type="checkbox" id="chkErr" role="switch"><span class="track"></span><span>check errors</span></label>
+          <p class="label" style="margin-top:10px">Next puzzle</p>
+          <div class="seg" role="radiogroup" aria-label="difficulty">
+            <label><input type="radio" name="lvl" value="easy"><span>easy</span></label>
+            <label><input type="radio" name="lvl" value="medium"><span>medium</span></label>
+            <label><input type="radio" name="lvl" value="hard"><span>hard</span></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" type="button" id="btnNew">new puzzle</button>
+        <button class="btn" type="button" id="btnRestart">restart</button>
+        <button class="btn" type="button" id="btnSolve">show solution</button>
+      </div>
+
+      <details class="how">
+        <summary>how to play</summary>
+        <ul>
+          <li>fill every row, column and 3×3 box with 1 to 9 once</li>
+          <li>slide the purple box to swap places with a neighbour, digits travel with their box</li>
+          <li>every puzzle can be solved</li>
+        </ul>
+        <dl class="keys">
+          <dt><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></dt><dd>move selection</dd>
+          <dt><kbd>shift</kbd><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></dt><dd>slide purple box</dd>
+          <dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>enter digit</dd>
+          <dt><kbd>n</kbd></dt><dd>notes</dd>
+          <dt><kbd>backspace</kbd></dt><dd>erase</dd>
+          <dt><kbd>ctrl/cmd</kbd><kbd>z</kbd></dt><dd>undo</dd>
+        </dl>
+      </details>
+    </section>
+  </div>
+</div>
+
+<script>
+// <logic>
+const DIRS = { up: -3, down: 3, left: -1, right: 1 };
+const DIR_NAMES = ['up', 'down', 'left', 'right'];
+const NB = (p) => {
+  const r = (p / 3) | 0, c = p % 3, o = [];
+  if (r > 0) o.push(p - 3);
+  if (r < 2) o.push(p + 3);
+  if (c > 0) o.push(p - 1);
+  if (c < 2) o.push(p + 1);
+  return o;
+};
+const canMove = (p, dir) => NB(p).includes(p + DIRS[dir]);
+
+const CONFIG = {
+  easy:   { givens: 46, minPer: 4, moves: 16, displaced: 4 },
+  medium: { givens: 38, minPer: 3, moves: 34, displaced: 6 },
+  hard:   { givens: 30, minPer: 2, moves: 60, displaced: 7 },
+};
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = (Math.random() * (i + 1)) | 0;
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// A complete valid Sudoku, shuffled within its bands and stacks.
+function makeSolution() {
+  const pattern = (r, c) => (3 * (r % 3) + ((r / 3) | 0) + c) % 9;
+  const rows = [], cols = [];
+  for (const g of shuffle([0, 1, 2])) for (const r of shuffle([0, 1, 2])) rows.push(g * 3 + r);
+  for (const g of shuffle([0, 1, 2])) for (const c of shuffle([0, 1, 2])) cols.push(g * 3 + c);
+  const nums = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  return rows.map((r) => cols.map((c) => nums[pattern(r, c)]));
+}
+
+// Random legal slides of the purple box. Reversing them always solves the puzzle.
+function scramble(slots, purple, n) {
+  let p = slots.indexOf(purple), last = -1;
+  for (let k = 0; k < n; k++) {
+    const opts = NB(p).filter((q) => q !== last);
+    const q = opts[(Math.random() * opts.length) | 0];
+    slots[p] = slots[q];
+    slots[q] = purple;
+    last = p;
+    p = q;
+  }
+}
+const displaced = (slots) => slots.reduce((n, b, pos) => n + (b !== pos ? 1 : 0), 0);
+
+function makeGivens(sol, cfg) {
+  const keys = shuffle(Array.from({ length: 81 }, (_, k) => k));
+  const given = sol.map((a) => a.slice());
+  const per = Array(9).fill(9);
+  let count = 81;
+  for (const k of keys) {
+    if (count <= cfg.givens) break;
+    const b = (k / 9) | 0, i = k % 9;
+    if (per[b] <= cfg.minPer) continue;
+    given[b][i] = 0; per[b]--; count--;
+  }
+  return given;
+}
+
+function newGame(level) {
+  const cfg = CONFIG[level] || CONFIG.medium;
+  const S = makeSolution();
+  const sol = [];
+  for (let b = 0; b < 9; b++) {
+    const br = (b / 3) | 0, bc = b % 3, a = [];
+    for (let i = 0; i < 9; i++) a.push(S[br * 3 + ((i / 3) | 0)][bc * 3 + (i % 3)]);
+    sol.push(a);
+  }
+  const purple = (Math.random() * 9) | 0;
+  const slots = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+  scramble(slots, purple, cfg.moves);
+  let guard = 0;
+  while (displaced(slots) < cfg.displaced && guard++ < 400) scramble(slots, purple, 2);
+  const given = makeGivens(sol, cfg);
+  return {
+    v: 1, level: CONFIG[level] ? level : 'medium', purple, slots, initial: slots.slice(), sol, given,
+    val: given.map((a) => a.slice()), notes: sol.map(() => Array(9).fill(0)),
+    elapsed: 0, slides: 0, status: 'play',
+  };
+}
+
+// 81 cells in reading order of the current layout: { b: box id, i: cell index in box, v: digit }
+function layout(st) {
+  const cells = new Array(81);
+  for (let pos = 0; pos < 9; pos++) {
+    const b = st.slots[pos], br = (pos / 3) | 0, bc = pos % 3;
+    for (let i = 0; i < 9; i++) {
+      const r = br * 3 + ((i / 3) | 0), c = bc * 3 + (i % 3);
+      cells[r * 9 + c] = { b, i, v: st.val[b][i] };
+    }
+  }
+  return cells;
+}
+
+function analyze(st) {
+  const cells = layout(st);
+  const bad = new Set();
+  let filled = 0;
+  const check = (idxs) => {
+    const seen = {};
+    for (const gi of idxs) {
+      const v = cells[gi].v;
+      if (v) (seen[v] = seen[v] || []).push(gi);
+    }
+    for (const v in seen) if (seen[v].length > 1) for (const gi of seen[v]) bad.add(gi);
+  };
+  for (let r = 0; r < 9; r++) check(Array.from({ length: 9 }, (_, c) => r * 9 + c));
+  for (let c = 0; c < 9; c++) check(Array.from({ length: 9 }, (_, r) => r * 9 + c));
+  for (let br = 0; br < 3; br++) for (let bc = 0; bc < 3; bc++) {
+    const ids = [];
+    for (let i = 0; i < 9; i++) ids.push((br * 3 + ((i / 3) | 0)) * 9 + bc * 3 + (i % 3));
+    check(ids);
+  }
+  for (const x of cells) if (x.v) filled++;
+  return { cells, bad, filled, solved: filled === 81 && bad.size === 0 };
+}
+
+// Shortest list of purple destinations that returns every box to its starting slot.
+function findPath(slots, purple) {
+  const target = '012345678', start = slots.join(''), pc = String(purple);
+  if (start === target) return [];
+  const prev = new Map([[start, null]]);
+  let frontier = [start];
+  while (frontier.length) {
+    const next = [];
+    for (const s of frontier) {
+      const p = s.indexOf(pc);
+      for (const q of NB(p)) {
+        const a = s.split('');
+        a[p] = a[q]; a[q] = pc;
+        const t = a.join('');
+        if (prev.has(t)) continue;
+        prev.set(t, [s, q]);
+        if (t === target) {
+          const path = [];
+          let cur = t;
+          while (prev.get(cur)) { const [ps, pq] = prev.get(cur); path.push(pq); cur = ps; }
+          return path.reverse();
+        }
+        next.push(t);
+      }
+    }
+    frontier = next;
+  }
+  return null;
+}
+
+function validGame(g) {
+  const grid = (m) => Array.isArray(m) && m.length === 9 && m.every((a) => Array.isArray(a) && a.length === 9 && a.every((x) => Number.isInteger(x) && x >= 0 && x < 1024));
+  return !!g && typeof g === 'object' && Array.isArray(g.slots) && g.slots.length === 9 &&
+    [...g.slots].sort().join('') === '012345678' && Array.isArray(g.initial) && g.initial.length === 9 &&
+    Number.isInteger(g.purple) && g.purple >= 0 && g.purple < 9 &&
+    grid(g.sol) && grid(g.given) && grid(g.val) && grid(g.notes) &&
+    ['play', 'won', 'shown'].includes(g.status) && Number.isFinite(g.elapsed) && Number.isFinite(g.slides);
+}
+// </logic>
+
+// ---------- UI ----------
+const GAME_KEY = 'slidoku:game', PREF_KEY = 'slidoku:prefs';
+const prefs = { check: false, level: 'medium' };
+let st = null, sel = null, noteMode = false, hist = [], fut = [], busy = false;
+const boxEls = [], cellEls = [], chipEls = {}, padEls = {};
+const $ = (s) => document.querySelector(s);
+const board = $('#board'), banner = $('#banner'), bannerText = $('#bannerText');
+const numpad = $('#numpad'), dpad = $('#dpad'), chkErr = $('#chkErr');
+const btn = { notes: $('#btnNotes'), erase: $('#btnErase'), undo: $('#btnUndo'), redo: $('#btnRedo'), newGame: $('#btnNew'), restart: $('#btnRestart'), solve: $('#btnSolve') };
+const ARROW = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const fmt = (s) => {
+  const h = (s / 3600) | 0, m = ((s % 3600) / 60) | 0, x = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${x}` : `${m}:${x}`;
+};
+const WORDS = { up: 'above', down: 'below', left: 'to the left', right: 'to the right' };
+
+function buildBoard() {
+  board.innerHTML = '';
+  for (let b = 0; b < 9; b++) {
+    const box = document.createElement('div');
+    box.className = 'box';
+    for (let i = 0; i < 9; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.b = b; cell.dataset.i = i;
+      cell.setAttribute('role', 'button');
+      const val = document.createElement('span'); val.className = 'val';
+      const notes = document.createElement('span'); notes.className = 'notes';
+      for (let d = 0; d < 9; d++) notes.appendChild(document.createElement('i'));
+      cell.append(val, notes);
+      box.appendChild(cell);
+      cellEls[b * 9 + i] = cell;
+    }
+    board.appendChild(box);
+    boxEls[b] = box;
+  }
+  for (const dir of DIR_NAMES) {
+    const chip = document.createElement('button');
+    chip.type = 'button'; chip.className = 'chip'; chip.dataset.dir = dir; chip.hidden = true;
+    chip.innerHTML = ARROW;
+    board.appendChild(chip);
+    chipEls[dir] = chip;
+    chip.addEventListener('click', () => slide(dir));
+
+    const pad = document.createElement('button');
+    pad.type = 'button'; pad.className = 'btn pad'; pad.dataset.dir = dir;
+    pad.setAttribute('aria-label', 'move purple box ' + dir);
+    pad.innerHTML = ARROW;
+    dpad.appendChild(pad);
+    padEls[dir] = pad;
+    pad.addEventListener('click', () => slide(dir));
+  }
+  const mid = document.createElement('span'); mid.className = 'mid'; mid.setAttribute('aria-hidden', 'true');
+  dpad.appendChild(mid);
+  for (let d = 1; d <= 9; d++) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn num'; b.dataset.d = d;
+    b.innerHTML = `<span>${d}</span><small></small>`;
+    numpad.appendChild(b);
+  }
+}
+
+function chipPos(p, q) {
+  const pr = (p / 3) | 0, pc = p % 3, qr = (q / 3) | 0, qc = q % 3;
+  const step = '(100% + var(--gap)) / 3', half = '(100% - 2 * var(--gap)) / 6', full = '(100% - 2 * var(--gap)) / 3';
+  if (pr === qr) {
+    return { x: `calc(${Math.min(pc, qc)} * ${step} + ${full} + var(--gap) / 2)`, y: `calc(${pr} * ${step} + ${half})` };
+  }
+  return { x: `calc(${pc} * ${step} + ${half})`, y: `calc(${Math.min(pr, qr)} * ${step} + ${full} + var(--gap) / 2)` };
+}
+
+function render(a) {
+  a = a || analyze(st);
+  const p = st.slots.indexOf(st.purple);
+  const playing = st.status === 'play';
+
+  for (let pos = 0; pos < 9; pos++) {
+    const el = boxEls[st.slots[pos]];
+    el.style.setProperty('--r', (pos / 3) | 0);
+    el.style.setProperty('--c', pos % 3);
+    el.style.setProperty('--n', pos);
+  }
+  boxEls.forEach((el, b) => el.classList.toggle('purple', b === st.purple));
+
+  let selGi = -1;
+  if (sel) for (let gi = 0; gi < 81; gi++) if (a.cells[gi].b === sel.b && a.cells[gi].i === sel.i) { selGi = gi; break; }
+  const selV = selGi >= 0 ? a.cells[selGi].v : 0;
+  const sr = (selGi / 9) | 0, sc = selGi % 9;
+  const cnt = Array(10).fill(0);
+
+  for (let gi = 0; gi < 81; gi++) {
+    const { b, i, v } = a.cells[gi];
+    const r = (gi / 9) | 0, c = gi % 9;
+    const el = cellEls[b * 9 + i];
+    const isSel = gi === selGi, given = st.given[b][i] > 0;
+    const peer = selGi >= 0 && !isSel && (r === sr || c === sc || b === sel.b);
+    let cls = 'cell';
+    if (given) cls += ' given';
+    if (v) cls += ' has-val';
+    if (peer) cls += ' peer';
+    if (selV && v === selV && !isSel) cls += ' same';
+    if (prefs.check && a.bad.has(gi)) cls += ' conflict';
+    if (isSel) cls += ' sel';
+    el.className = cls;
+    el.firstChild.textContent = v || '';
+    if (!v) {
+      const mask = st.notes[b][i], ns = el.lastChild.children;
+      for (let d = 0; d < 9; d++) {
+        ns[d].textContent = mask & (1 << d) ? d + 1 : '';
+        ns[d].classList.toggle('hit', selV > 0 && d + 1 === selV);
+      }
+    }
+    el.setAttribute('aria-label', `row ${r + 1}, column ${c + 1}, ${v ? v : 'empty'}${given ? ', given' : ''}`);
+    cnt[v]++;
+  }
+
+  numpad.querySelectorAll('.num').forEach((n) => {
+    const d = +n.dataset.d;
+    n.lastChild.textContent = Math.max(0, 9 - cnt[d]);
+    n.classList.toggle('done', cnt[d] >= 9);
+    n.disabled = !playing || busy;
+  });
+
+  for (const dir of DIR_NAMES) {
+    const ok = playing && !busy && canMove(p, dir);
+    padEls[dir].disabled = !ok;
+    const chip = chipEls[dir];
+    chip.hidden = !ok;
+    if (ok) {
+      const { x, y } = chipPos(p, p + DIRS[dir]);
+      chip.style.left = x; chip.style.top = y;
+      chip.setAttribute('aria-label', `swap the purple box with the box ${WORDS[dir]}`);
+    }
+  }
+
+  btn.undo.disabled = !playing || busy || !hist.length;
+  btn.redo.disabled = !playing || busy || !fut.length;
+  btn.erase.disabled = !playing || busy;
+  btn.notes.disabled = !playing;
+  btn.solve.disabled = !playing || busy;
+  btn.notes.setAttribute('aria-pressed', String(noteMode));
+  document.body.classList.toggle('notes-on', noteMode);
+  chkErr.checked = prefs.check;
+  document.querySelectorAll('input[name="lvl"]').forEach((r) => { r.checked = r.value === prefs.level; });
+
+  banner.hidden = playing;
+  if (st.status === 'won') {
+    banner.className = 'banner ok';
+    bannerText.textContent = `solved in ${fmt(st.elapsed)} with ${st.slides} slide${st.slides === 1 ? '' : 's'}`;
+  } else if (st.status === 'shown') {
+    banner.className = 'banner info';
+    bannerText.textContent = 'solution shown';
+  }
+  renderHud(a);
+}
+
+function renderHud(a) {
+  a = a || analyze(st);
+  $('#hudTime').textContent = fmt(st.elapsed);
+  $('#hudSlides').textContent = st.slides;
+  $('#hudFilled').textContent = a.filled + '/81';
+}
+
+function save() {
+  try { localStorage.setItem(GAME_KEY, JSON.stringify(st)); } catch (e) { /* storage unavailable */ }
+}
+function savePrefs() {
+  try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch (e) { /* storage unavailable */ }
+}
+
+function snap() { return JSON.stringify({ s: st.slots, v: st.val, n: st.notes }); }
+function pushHist() { hist.push(snap()); if (hist.length > 400) hist.shift(); fut.length = 0; }
+function restoreSnap(str) { const o = JSON.parse(str); st.slots = o.s; st.val = o.v; st.notes = o.n; }
+function undo() {
+  if (busy || st.status !== 'play' || !hist.length) return;
+  fut.push(snap()); restoreSnap(hist.pop()); afterChange();
+}
+function redo() {
+  if (busy || st.status !== 'play' || !fut.length) return;
+  hist.push(snap()); restoreSnap(fut.pop()); afterChange();
+}
+
+function afterChange() {
+  const a = analyze(st);
+  if (st.status === 'play' && a.solved) {
+    st.status = 'won';
+    board.classList.add('win');
+    setTimeout(() => board.classList.remove('win'), 1500);
+  }
+  save();
+  render(a);
+}
+
+function swapPurple(q) {
+  const p = st.slots.indexOf(st.purple);
+  st.slots[p] = st.slots[q];
+  st.slots[q] = st.purple;
+}
+function slide(dir) {
+  if (busy || !st || st.status !== 'play') return;
+  const p = st.slots.indexOf(st.purple);
+  if (!canMove(p, dir)) return;
+  pushHist();
+  swapPurple(p + DIRS[dir]);
+  st.slides++;
+  afterChange();
+}
+
+function enterDigit(d) {
+  if (busy || !sel || st.status !== 'play') return;
+  const { b, i } = sel;
+  if (st.given[b][i]) return;
+  if (noteMode) {
+    if (st.val[b][i]) return;
+    pushHist();
+    st.notes[b][i] ^= 1 << (d - 1);
+  } else {
+    pushHist();
+    if (st.val[b][i] === d) st.val[b][i] = 0;
+    else { st.val[b][i] = d; st.notes[b][i] = 0; }
+  }
+  afterChange();
+}
+function erase() {
+  if (busy || !sel || st.status !== 'play') return;
+  const { b, i } = sel;
+  if (st.given[b][i] || (!st.val[b][i] && !st.notes[b][i])) return;
+  pushHist();
+  if (st.val[b][i]) st.val[b][i] = 0; else st.notes[b][i] = 0;
+  afterChange();
+}
+
+function moveSel(dr, dc) {
+  const cells = layout(st);
+  if (!sel) { const x = cells[40]; sel = { b: x.b, i: x.i }; render(); return; }
+  let gi = cells.findIndex((x) => x.b === sel.b && x.i === sel.i);
+  const r = Math.min(8, Math.max(0, ((gi / 9) | 0) + dr)), c = Math.min(8, Math.max(0, (gi % 9) + dc));
+  const x = cells[r * 9 + c];
+  sel = { b: x.b, i: x.i };
+  render();
+}
+
+function hasProgress() {
+  if (st.slides > 0) return true;
+  for (let b = 0; b < 9; b++) for (let i = 0; i < 9; i++) if (!st.given[b][i] && (st.val[b][i] || st.notes[b][i])) return true;
+  return false;
+}
+
+function startNew(level) {
+  st = newGame(level);
+  prefs.level = st.level; savePrefs();
+  sel = null; hist = []; fut = []; busy = false;
+  afterChange();
+}
+function restart() {
+  st.slots = st.initial.slice();
+  st.val = st.given.map((a) => a.slice());
+  st.notes = st.sol.map(() => Array(9).fill(0));
+  st.slides = 0; st.elapsed = 0; st.status = 'play';
+  hist = []; fut = []; busy = false;
+  afterChange();
+}
+
+async function reveal() {
+  if (busy || st.status !== 'play') return;
+  busy = true;
+  render();
+  await sleep(30);
+  const path = findPath(st.slots, st.purple);
+  if (!path) { busy = false; render(); return; }
+  const delay = path.length > 16 ? 120 : 200;
+  board.style.setProperty('--slide', (delay - 10) + 'ms');
+  for (const q of path) {
+    swapPurple(q);
+    st.slides++;
+    render();
+    await sleep(delay);
+  }
+  await sleep(250);
+  board.style.removeProperty('--slide');
+  for (let b = 0; b < 9; b++) for (let i = 0; i < 9; i++) { st.val[b][i] = st.sol[b][i]; st.notes[b][i] = 0; }
+  st.status = 'shown';
+  hist = []; fut = []; busy = false;
+  save();
+  render();
+}
+
+function confirmable(el, needs, fn) {
+  const label = el.textContent;
+  let timer = 0;
+  const reset = () => { clearTimeout(timer); el.dataset.armed = ''; el.textContent = label; el.classList.remove('armed'); };
+  el.addEventListener('click', () => {
+    if (el.dataset.armed) { reset(); fn(); return; }
+    if (!needs()) { fn(); return; }
+    el.dataset.armed = '1';
+    el.textContent = 'tap again to confirm';
+    el.classList.add('armed');
+    timer = setTimeout(reset, 3200);
+  });
+}
+
+function wire() {
+  board.addEventListener('click', (e) => {
+    const cell = e.target.closest('.cell');
+    if (!cell) return;
+    sel = { b: +cell.dataset.b, i: +cell.dataset.i };
+    render();
+  });
+  numpad.addEventListener('click', (e) => {
+    const n = e.target.closest('.num');
+    if (n) enterDigit(+n.dataset.d);
+  });
+  btn.notes.addEventListener('click', () => { noteMode = !noteMode; render(); });
+  btn.erase.addEventListener('click', erase);
+  btn.undo.addEventListener('click', undo);
+  btn.redo.addEventListener('click', redo);
+  chkErr.addEventListener('change', () => { prefs.check = chkErr.checked; savePrefs(); render(); });
+  document.querySelectorAll('input[name="lvl"]').forEach((r) => r.addEventListener('change', () => {
+    if (r.checked) { prefs.level = r.value; savePrefs(); }
+  }));
+  confirmable(btn.newGame, () => st.status === 'play' && hasProgress(), () => startNew(prefs.level));
+  confirmable(btn.restart, () => st.status === 'play' && hasProgress(), restart);
+  confirmable(btn.solve, () => true, reveal);
+  $('#bannerNew').addEventListener('click', () => startNew(prefs.level));
+
+  document.addEventListener('keydown', (e) => {
+    if (!st) return;
+    const k = e.key;
+    if (e.ctrlKey || e.metaKey) {
+      const lk = k.toLowerCase();
+      if (lk === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+      else if (lk === 'y') { e.preventDefault(); redo(); }
+      return;
+    }
+    if (e.altKey) return;
+    if (k >= '1' && k <= '9') { enterDigit(+k); return; }
+    if (k === 'Backspace' || k === 'Delete' || k === '0') { e.preventDefault(); erase(); return; }
+    if (k === 'n' || k === 'N') { if (st.status === 'play') { noteMode = !noteMode; render(); } return; }
+    if (k === 'Escape') { sel = null; render(); return; }
+    const arrows = { ArrowUp: ['up', -1, 0], ArrowDown: ['down', 1, 0], ArrowLeft: ['left', 0, -1], ArrowRight: ['right', 0, 1] };
+    const a = arrows[k];
+    if (a) {
+      e.preventDefault();
+      if (e.shiftKey) slide(a[0]);
+      else if (!busy) moveSel(a[1], a[2]);
+    }
+  });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && st) save(); });
+  window.addEventListener('pagehide', () => { if (st) save(); });
+
+  let tick = 0;
+  setInterval(() => {
+    if (!st || st.status !== 'play' || document.hidden || busy) return;
+    st.elapsed++;
+    renderHud();
+    if (++tick % 5 === 0) save();
+  }, 1000);
+}
+
+function start(data) {
+  try { Object.assign(prefs, JSON.parse(localStorage.getItem(PREF_KEY) || '{}')); } catch (e) { /* ignore */ }
+  if (!CONFIG[prefs.level]) prefs.level = 'medium';
+  prefs.check = !!prefs.check;
+
+  let g = data && validGame(data.game) ? data.game : null;
+  if (!g) {
+    try {
+      const o = JSON.parse(localStorage.getItem(GAME_KEY) || 'null');
+      if (validGame(o)) g = o;
+    } catch (e) { /* ignore */ }
+  }
+  st = g || newGame(prefs.level);
+  buildBoard();
+  wire();
+  render();
+  requestAnimationFrame(() => requestAnimationFrame(() => board.classList.add('ready')));
+  window.claude?.hot?.snapshot?.(() => ({ game: st }));
+}
+
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+</script>
+
+</body></html>
