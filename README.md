@@ -23,3 +23,7 @@ open `Slidoku.html` in a modern browser and start playing
 ## privacy
 
 no account or server required; game data stays in browser storage
+
+## ai disclaimer
+
+generative ai was employed to create this site
