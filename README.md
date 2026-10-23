@@ -11,7 +11,7 @@ a sudoku game where you slide 3×3 boxes to solve the puzzle
 
 ## play
 
-(https://slidoku.vercel.app/)
+https://slidoku.vercel.app/
 
 ## controls
 
